@@ -21,7 +21,13 @@
 
 ## GitHub Pages 发布
 
-本目录已经准备好发布配置，尚不代表远端仓库或网站已创建。
+已发布：[打开演员档案编辑器](https://lizm21.github.io/actor-profile/)。演员无需登录 GitHub。
+
+2026-10-21 发布验证：GitHub Actions 检查和部署成功；正式网页表单可打开；九个核心文件（包括中文字体与 PDF 组件）的 SHA-256 与本地版本一致；在线填写中文艺名后成功生成 PDF，浏览器未记录脚本错误。此验证不代表所有地区网络和微信内浏览器均可访问。
+
+当前版本只在各自浏览器保存草稿，尚不包含统一收录、管理审核或公开演员目录。
+
+迁移或重新发布时：
 
 1. 创建空仓库，将本目录推送到 `main` 分支。若采用 GitHub Free 的免费 Pages 托管，使用公开仓库；公开的是编辑器代码，不包含演员草稿。
 2. 仓库 Settings → Pages → Build and deployment → Source 选择 **GitHub Actions**。
@@ -49,7 +55,7 @@ npm test
 node tests/pdf-check.mjs
 ```
 
-测试 PDF 写入 `tmp/qa/`，不会进入仓库。可选放入 `tmp/qa/portrait.jpg` 进行带图测试。PDF 渲染检查及已知验证边界见 `TESTING.md`；该文件记录原编辑器的本地功能验证，GitHub 托管仍需部署后检查。
+测试 PDF 写入 `tmp/qa/`，不会进入仓库。可选放入 `tmp/qa/portrait.jpg` 进行带图测试。PDF 渲染检查及已知验证边界见 `TESTING.md`；该文件记录原编辑器的本地功能验证；GitHub 托管检查见上方发布记录。
 
 ## 依赖
 
