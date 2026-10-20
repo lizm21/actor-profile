@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="幕前演员档案编辑器。整理艺名、照片、演出经历与比赛荣誉，免登录，本机保存，一键导出中文 PDF。">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="theme-color" content="#f6f5f1">
+  <title>幕前 · 演员档案</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="./vendor/pdf-lib.min.js"></script>
+  <script defer src="./vendor/fontkit.umd.min.js"></script>
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="幕前演员档案首页"><span class="brand-mark" aria-hidden="true">幕</span><span>幕前<span class="brand-en">ACTOR FOLIO</span></span></a>
+    <div class="header-right"><span class="privacy-badge"><span aria-hidden="true">◈</span> 资料仅存本机</span><span class="version-label">档案编辑器 / 01</span></div>
+  </header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">每一次登台，都值得被看见</p><h1>把你的舞台，<br class="mobile-br">写进一份档案。</h1><p class="intro-copy">整理经历，留下风格。制作一份属于你的演员简历。</p></div>
+      <div class="intro-note"><span class="note-number">01—03</span><span>填写资料 · 预览档案 · 导出 PDF</span></div>
+    </section>
+    <div class="workspace-bar">
+      <p id="save-status" class="save-status" role="status" aria-live="polite">正在读取本机草稿…</p>
+      <div class="utility-actions"><button id="backup" class="text-button" type="button">备份草稿</button><span class="divider"></span><button id="import" class="text-button" type="button">导入草稿</button><span class="divider"></span><button id="clear" class="text-button muted" type="button">清空档案</button></div>
+    </div>
+    <p class="storage-note">草稿仅保存在当前浏览器；清理浏览器数据或更换设备后不会自动恢复。建议定期备份。</p>
+    <div id="feedback" class="feedback" role="alert" hidden></div>
+    <nav class="mobile-tabs" aria-label="工作区视图"><button type="button" class="active" data-tab="editor" aria-pressed="true">编辑资料</button><button type="button" data-tab="preview" aria-pressed="false">预览档案</button></nav>
+    <div class="workspace" data-view="editor">
+      <section id="editor" class="editor" aria-label="编辑演员资料">
+        <form id="profile-form" novalidate>
+          <fieldset id="form-fields" disabled>
+            <section class="form-card">
+              <div class="section-heading"><div><span class="section-index">01</span><h2>基本信息</h2></div><span class="section-aside">让大家认识你</span></div>
+              <div class="identity-fields">
+                <div class="photo-editor">
+                  <button type="button" id="choose-photo" class="photo-button" aria-label="添加或替换演员照片"><img id="photo-thumb" alt="当前演员照片" hidden><span id="photo-empty"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 10h4l2-3h4l2 3h4a3 3 0 0 1 3 3v11H5V13a3 3 0 0 1 3-3Z"/><circle cx="16" cy="17" r="4"/></svg><span>添加照片</span></span></button>
+                  <button type="button" id="remove-photo" class="text-button small" hidden>移除照片</button>
+                  <p class="hint">JPG / PNG / WebP<br>最大 10 MB</p>
+                </div>
+                <div class="name-field"><label for="stage-name">艺名 <span class="required">必填</span></label><input id="stage-name" name="stageName" type="text" placeholder="你希望被记住的名字" autocomplete="off" required aria-describedby="name-error"><span id="name-error" class="field-error" hidden>请先填写艺名，再导出 PDF。</span><p class="hint">将在简历顶部展示。</p></div>
+              </div>
+              <label for="bio">个人简述 <span class="optional">选填</span></label>
+              <textarea id="bio" name="bio" rows="5" placeholder="介绍你的表演风格、创作方向，或一句最能代表你的话。"></textarea>
+              <p class="hint">用你自己的语言介绍自己，换行会保留到简历中。</p>
+            </section>
+            <section class="form-card">
+              <div class="section-heading"><div><span class="section-index">02</span><h2>演出经历</h2><span id="experience-count" class="count">0</span></div><span class="section-aside">记录每一次登台</span></div>
+              <div id="experiences"></div><p id="experience-empty" class="empty-list">从一次演出开始，慢慢积累你的舞台履历。</p>
+              <button type="button" id="add-experience" class="add-button"><span aria-hidden="true">＋</span> 添加演出经历</button>
+            </section>
+            <section class="form-card">
+              <div class="section-heading"><div><span class="section-index">03</span><h2>比赛荣誉</h2><span id="honor-count" class="count">0</span></div><span class="section-aside">留住高光时刻</span></div>
+              <div id="honors"></div><p id="honor-empty" class="empty-list">记录比赛和获得的荣誉，也可以暂时留白。</p>
+              <button type="button" id="add-honor" class="add-button"><span aria-hidden="true">＋</span> 添加比赛荣誉</button>
+            </section>
+          </fieldset>
+        </form>
+        <p class="editor-footnote">条目可自由增删和排序。空白内容不会出现在 PDF 中。</p>
+      </section>
+      <aside id="preview-panel" class="preview-panel" aria-label="档案预览">
+        <div class="preview-toolbar"><div><span class="live-dot"></span>档案预览</div><span>A4 纵向 · 自动分页</span></div>
+        <div class="paper-wrap"><article id="paper" class="paper" aria-label="简历内容预览"></article></div>
+        <div class="export-card">
+          <div><strong>准备好，让更多人认识你。</strong><p>中文文字可复制 · 照片清晰保留</p></div>
+          <button id="export-pdf" type="button" class="primary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5"/></svg><span>下载 PDF</span></button>
+          <p class="export-note">预览展示内容与顺序，最终分页以 PDF 为准。</p>
+          <div id="pdf-result" class="pdf-result" hidden><span>PDF 已生成。</span><a id="open-pdf" target="_blank" rel="noopener">打开 PDF 并保存</a><p>如果没有自动下载，请点击上方链接。微信内可尝试使用系统浏览器打开本站。</p></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+  <footer><span>幕前 <span class="footer-dot">/</span> 给每一位站上舞台的人</span><span>免登录 · 本机保存 · 自由导出</span></footer>
+  <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+  <input id="backup-input" type="file" accept=".json,application/json" hidden>
+</body>
+</html>
