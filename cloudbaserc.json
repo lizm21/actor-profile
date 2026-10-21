@@ -1,0 +1,12 @@
+{
+  "envId": "codex-d2g25pxe97f6c229f",
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "app": {
+    "serviceName": "actor-profile",
+    "framework": "static",
+    "installCommand": "",
+    "buildCommand": "",
+    "outputDir": "./",
+    "root": "dist"
+  }
+}

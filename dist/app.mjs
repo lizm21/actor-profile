@@ -2,20 +2,33 @@ import {emptyDraft,meaningful,validateDraft,parseBackup,serializeBackup,filename
 import {openStorage,readDraft,writeDraft} from './storage.mjs';
 import {createProfilePdf} from './pdf.mjs';
 import {normalizePhoto,photoBytes} from './photo.mjs';
+import {newIdentity,readIdentity,storeIdentity,forgetIdentity,parseProfileLink,profileLink,fingerprint,readProfile,saveProfile,deleteProfile} from './cloud.mjs';
 
 const $=id=>document.getElementById(id);
 let draft=emptyDraft(),ready=false,storageReady=false,timer,revision=0,saveChain=Promise.resolve(),pdfUrl=null,photoRevision=0,photoBusy=false,pdfFile=null;
 const isWeChat=/MicroMessenger/i.test(navigator.userAgent);
+let identity=readIdentity(),viewOnly=false,cloudBusy=false,cloudDirty=true,sharedLink=null;
+function cloudStatus(message,error=false){$('cloud-status').textContent=message;$('cloud-status').classList.toggle('error',error);}
+function cloudControls(){
+  $('cloud-retry').hidden=viewOnly;
+  $('cloud-retry').disabled=cloudBusy||!ready||photoBusy;
+  $('reload-cloud').hidden=viewOnly||!identity?.version;
+  $('delete-cloud').hidden=viewOnly||!identity?.version;
+  $('delete-cloud').disabled=cloudBusy;
+  $('cloud-link-box').hidden=!sharedLink||(!viewOnly&&cloudDirty);
+  if(sharedLink)$('cloud-link').value=sharedLink;
+}
 function feedback(message=''){ for(const id of ['feedback','preview-feedback']){$(id).textContent=message;$(id).hidden=!message;} }
 function savedStatus(message,error=false){$('save-status').textContent=message;$('save-status').classList.toggle('error',error);}
 function changed(){
   revision++; clearTimeout(timer);
+  cloudDirty=true;cloudStatus('修改尚未提交到云端，请点击「提交并预览」。');cloudControls();
   $('pdf-result').hidden=true;renderPreview();
   if(storageReady){savedStatus('正在保存…');timer=setTimeout(flush,350);}
   else savedStatus('本机保存不可用，请下载备份',true);
 }
 function flush(){
-  clearTimeout(timer);if(!storageReady||!ready)return;
+  clearTimeout(timer);if(!storageReady||!ready||viewOnly)return;
   const snapshot=structuredClone(draft),version=revision;
   saveChain=saveChain.then(()=>writeDraft(snapshot)).then(()=>{
     if(version===revision)savedStatus('已保存到当前浏览器');
@@ -138,7 +151,9 @@ $('backup-input').addEventListener('change',async e=>{
   }catch(error){feedback(error.message);}
 });
 $('clear').addEventListener('click',()=>{
-  if(!ready||!confirm('清空当前档案及本机草稿？此操作无法撤销，请先下载备份。'))return;
+  if(!ready||cloudBusy||!confirm('清空本机草稿并开始新档案？已提交的云端档案不会删除；如需撤回，请先点击预览中的「删除云端档案」。请先下载备份。'))return;
+  try{forgetIdentity();}catch{feedback('无法清空本机编辑权限，请检查浏览器存储设置。');return;}
+  identity=null;sharedLink=null;history.replaceState(null,'',location.pathname+location.search);cloudControls();
   photoRevision++;draft=emptyDraft();renderForm();changed();flush();feedback();$('name-error').hidden=true;$('stage-name').removeAttribute('aria-invalid');$('stage-name').focus();
 });
 $('export-pdf').addEventListener('click',async()=>{
@@ -159,7 +174,7 @@ $('export-pdf').addEventListener('click',async()=>{
     pdfFile=typeof File==='function'?new File([blob],pdfName,{type:'application/pdf'}):null;
     let canShare=false;try{canShare=!!(pdfFile&&navigator.canShare?.({files:[pdfFile]}));}catch{}
     $('share-pdf').hidden=!canShare;
-    $('download-help').textContent=isWeChat?(canShare?'请点击「保存 / 分享文件」使用手机系统的保存入口。':'微信可能拦截「保存 PDF」。当前版本尚不能生成跨浏览器下载链接；请保留当前页面和草稿，不要复制临时 PDF 地址到其他浏览器。'):'没有自动下载时，请点击「保存 PDF」，或在当前浏览器预览后保存。';
+    $('download-help').textContent=isWeChat?(canShare?'可点击「保存 / 分享文件」，或复制上方档案链接到系统浏览器下载。':(sharedLink&&!cloudDirty?'复制上方「档案链接」，粘贴到系统浏览器后点击「下载 PDF」。也可通过微信右上角菜单在浏览器打开当前页面。':'请先完成云端提交，再复制档案链接到系统浏览器下载。')):'没有自动下载时，请点击「保存 PDF」，或在当前浏览器预览后保存。';
     $('pdf-result').hidden=false;
     if(startRevision!==revision)feedback('已导出点击下载时的档案。生成期间的修改已保留，请再次下载以导出最新内容。');
   }catch(error){feedback(error.message||'PDF 生成失败，请重试。草稿仍然保留。');}
@@ -168,6 +183,22 @@ $('export-pdf').addEventListener('click',async()=>{
 document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
 window.addEventListener('pagehide',flush);
 async function init(){
+  let incoming=null,linkError=null;
+  try{incoming=parseProfileLink(location.hash);}catch(error){linkError=error;}
+  viewOnly=!!linkError||!!(incoming&&(!identity||identity.id!==incoming.id||identity.viewKey!==incoming.key));
+  if(viewOnly){
+    document.body.classList.add('view-only');$('export-pdf').disabled=true;
+    savedStatus('正在读取云端档案…');cloudStatus('正在读取云端档案…');cloudControls();
+    try{
+      if(linkError)throw linkError;
+      const result=await readProfile(incoming.id,incoming.key);draft=validateDraft(result.draft);
+      sharedLink=profileLink(location.href,incoming.id,incoming.key);cloudDirty=false;
+      ready=true;renderPreview();$('export-pdf').disabled=false;
+      savedStatus('已打开云端档案 · 只读');cloudStatus('云端档案已加载，可以下载 PDF。');
+      document.title=draft.stageName+' · 演员档案';
+    }catch(error){savedStatus('无法打开云端档案',true);cloudStatus(error.message,true);$('view-retry').hidden=false;}
+    cloudControls();return;
+  }
   try{
     await openStorage();storageReady=true;const stored=await readDraft();
     if(stored){draft=validateDraft(stored);if(draft.photo){try{draft.photo=await normalizePhoto(draft.photo.dataUrl);await writeDraft(draft);}catch{feedback('旧照片未能压缩，请重新添加照片；文字已恢复。');}}savedStatus('已恢复本机草稿');}
@@ -178,6 +209,12 @@ async function init(){
     feedback('无法读取或保存本机草稿。你仍可填写、导出 PDF 和备份；关闭页面前请下载备份。');
   }
   ready=true;renderForm();$('form-fields').disabled=false;
+  if(identity?.version){
+    sharedLink=profileLink(location.href,identity.id,identity.viewKey);
+    cloudDirty=(await fingerprint(draft))!==identity.fingerprint;
+    cloudStatus(cloudDirty?'本机草稿与上次提交不同，请重新提交以更新链接内容。':'上次提交已保存到云端，可以复制档案链接。');
+  }else cloudStatus('点击「提交并预览」，将文字和压缩照片保存到云端。');
+  cloudControls();
 }
 const previewAnchor=document.createComment('preview-panel');
 $('preview-panel').before(previewAnchor);
@@ -186,18 +223,62 @@ function requireName(){
   if($('preview-dialog').open)$('preview-dialog').close();
   $('name-error').hidden=false;$('stage-name').setAttribute('aria-invalid','true');$('stage-name').focus();return false;
 }
-function openPreview(){
+async function openPreview(){
   if(!ready||photoBusy||!requireName())return;
   feedback();flush();renderPreview();$('preview-host').append($('preview-panel'));
   if(!$('preview-dialog').open)$('preview-dialog').showModal();
   $('close-preview').focus();
+  await submitCloud();
 }
+async function submitCloud(){
+  if(!ready||viewOnly||cloudBusy||photoBusy||!draft.stageName.trim())return;
+  cloudBusy=true;cloudControls();cloudStatus('正在保存到云端…');
+  const snapshot=structuredClone(draft),startRevision=revision;
+  try{
+    if(!identity)identity=newIdentity();
+    // Persist capabilities before the request so a timeout/reload cannot lose editing access.
+    try{storeIdentity(identity);}catch{throw new Error('浏览器无法保存编辑权限，暂不上传。请允许本地存储后重试；仍可下载 PDF。');}
+    const result=await saveProfile(identity,snapshot);
+    identity={...identity,version:result.version,fingerprint:await fingerprint(snapshot)};
+    storeIdentity(identity);sharedLink=profileLink(location.href,identity.id,identity.viewKey);
+    cloudDirty=startRevision!==revision;
+    history.replaceState(null,'',sharedLink);
+    cloudStatus(cloudDirty?'提交时的版本已保存；刚才的新修改尚未提交。':'已保存到云端。复制档案链接，可在其他浏览器打开并下载 PDF。');
+  }catch(error){cloudStatus(error.message,true);}
+  finally{cloudBusy=false;cloudControls();}
+}
+$('cloud-retry').addEventListener('click',submitCloud);
+$('view-retry').addEventListener('click',()=>location.reload());
+$('copy-cloud-link').addEventListener('click',async()=>{
+  if(!sharedLink||(!viewOnly&&cloudDirty))return;
+  try{await navigator.clipboard.writeText(sharedLink);cloudStatus('档案链接已复制。可粘贴到其他浏览器打开，或发给需要查看的人。');}
+  catch{$('cloud-link').focus();$('cloud-link').select();$('cloud-link').setSelectionRange(0,sharedLink.length);cloudStatus('请长按已选中的链接，选择「复制」，再粘贴到系统浏览器。');}
+});
+$('reload-cloud').addEventListener('click',async()=>{
+  if(!identity?.version||cloudBusy||!confirm('用最近提交的云端内容替换本机草稿？未提交修改将被覆盖，请先备份。'))return;
+  cloudBusy=true;cloudControls();
+  try{
+    const result=await readProfile(identity.id,identity.editKey);draft=validateDraft(result.draft);
+    identity={...identity,version:result.version,fingerprint:await fingerprint(draft)};storeIdentity(identity);
+    photoRevision++;renderForm();changed();flush();cloudDirty=false;cloudStatus('已读取最新云端版本。');
+  }catch(error){cloudStatus(error.message,true);}
+  finally{cloudBusy=false;cloudControls();}
+});
+$('delete-cloud').addEventListener('click',async()=>{
+  if(!identity?.version||cloudBusy||!confirm('删除这份云端档案并让查看链接失效？本机草稿会保留，已下载的 PDF 不会被删除。'))return;
+  cloudBusy=true;cloudControls();
+  try{
+    await deleteProfile(identity);forgetIdentity();identity=null;sharedLink=null;cloudDirty=true;
+    history.replaceState(null,'',location.pathname+location.search);cloudStatus('云端档案已删除，原链接已失效。本机草稿仍保留。');
+  }catch(error){cloudStatus(error.message,true);}
+  finally{cloudBusy=false;cloudControls();}
+});
 $('close-preview').addEventListener('click',()=>$('preview-dialog').close());
 $('preview-dialog').addEventListener('close',()=>{previewAnchor.after($('preview-panel'));$('submit-preview').focus();});
 $('share-pdf').addEventListener('click',async()=>{
   if(!pdfFile)return;
   try{await navigator.share({files:[pdfFile],title:'演员档案'});}
-  catch(error){if(error.name!=='AbortError')feedback('当前浏览器未能保存或分享文件。请保留草稿；这份临时文件不能在其他浏览器打开。');}
+  catch(error){if(error.name!=='AbortError')feedback('当前浏览器未能保存文件。请复制档案链接到系统浏览器，重新点击「下载 PDF」。');}
 });
 $('wechat-note').hidden=!isWeChat;
 init();

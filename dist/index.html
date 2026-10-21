@@ -3,8 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="幕前演员档案编辑器。整理艺名、照片、演出经历与比赛荣誉，免登录，本机保存，一键导出中文 PDF。">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="description" content="幕前演员档案编辑器。整理艺名、照片、演出经历与比赛荣誉，提交云端保存，凭链接预览并下载中文 PDF。">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://codex-d2g25pxe97f6c229f.api.tcloudbasegateway.com; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="theme-color" content="#f6f5f1">
   <title>幕前 · 演员档案</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -16,7 +18,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="./" aria-label="幕前演员档案首页"><span class="brand-mark" aria-hidden="true">幕</span><span>幕前<span class="brand-en">ACTOR FOLIO</span></span></a>
-    <div class="header-right"><span class="privacy-badge"><span aria-hidden="true">◈</span> 资料仅存本机</span><span class="version-label">档案编辑器 / 01</span></div>
+    <div class="header-right"><span class="privacy-badge"><span aria-hidden="true">◈</span> 提交后云端保存</span><span class="version-label">档案编辑器 / 02</span></div>
   </header>
   <main>
     <section class="intro">
@@ -27,8 +29,8 @@
       <p id="save-status" class="save-status" role="status" aria-live="polite">正在读取本机草稿…</p>
       <div class="utility-actions"><button id="backup" class="text-button" type="button">备份草稿</button><span class="divider"></span><button id="import" class="text-button" type="button">导入草稿</button><span class="divider"></span><button id="clear" class="text-button muted" type="button">清空档案</button></div>
     </div>
-    <p class="storage-note">草稿仅保存在当前浏览器；清理浏览器数据或更换设备后不会自动恢复。建议定期备份。</p>
-    <p id="wechat-note" class="feedback" hidden>微信可能限制文件保存。生成 PDF 后可尝试「保存 / 分享文件」（设备支持时显示）。当前资料仅存于微信内，换浏览器不会自动带入。</p>
+    <p class="storage-note">编辑时自动保存本机草稿；提交后，文字和压缩照片保存到本站腾讯云数据库，站点管理员可管理资料。持链接者可查看、下载，请只分享给需要的人。修改权限保存在本浏览器，清理浏览器数据后会失去修改权限。</p>
+    <p id="wechat-note" class="feedback" hidden>微信内保存 PDF 受限时：先提交到云端，再复制「档案链接」到系统浏览器打开下载，无需重新填写。</p>
     <div id="feedback" class="feedback" role="alert" hidden></div>
     <div class="workspace" data-view="editor">
       <section id="editor" class="editor" aria-label="编辑演员资料">
@@ -58,12 +60,17 @@
               <div id="honors"></div><p id="honor-empty" class="empty-list">记录比赛和获得的荣誉，也可以暂时留白。</p>
               <button type="button" id="add-honor" class="add-button"><span aria-hidden="true">＋</span> 添加比赛荣誉</button>
             </section>
-            <div class="submit-area"><button id="submit-preview" type="submit" class="primary-button">提交并预览</button><p class="hint">仅在本机生成预览，不会上传资料。</p></div>
+            <div class="submit-area"><button id="submit-preview" type="submit" class="primary-button">提交并预览</button><p class="hint">将文字和压缩照片保存到云端，生成可分享的查看链接。</p></div>
           </fieldset>
         </form>
         <p class="editor-footnote">条目可自由增删和排序。空白内容不会出现在 PDF 中。</p>
       </section>
       <aside id="preview-panel" class="preview-panel" aria-label="档案预览">
+        <section class="cloud-card" aria-label="云端档案">
+          <p id="cloud-status" role="status" aria-live="polite">提交后可在其他浏览器打开这份档案。</p>
+          <div id="cloud-link-box" hidden><label for="cloud-link">档案链接（持链接者可查看和下载）</label><input id="cloud-link" type="text" readonly spellcheck="false"><button id="copy-cloud-link" type="button" class="secondary-button">复制档案链接</button></div>
+          <div class="cloud-actions"><button id="cloud-retry" type="button" class="text-button">保存到云端 / 重试</button><button id="reload-cloud" type="button" class="text-button" hidden>读取云端版本</button><button id="delete-cloud" type="button" class="text-button muted" hidden>删除云端档案</button><button id="view-retry" type="button" class="secondary-button" hidden>重新加载</button></div>
+        </section>
         <div class="preview-toolbar"><div><span class="live-dot"></span>档案预览</div><span>A4 纵向 · 自动分页</span></div>
         <div class="paper-wrap"><article id="paper" class="paper" aria-label="简历内容预览"></article></div>
         <div class="export-card">
@@ -80,7 +87,7 @@
     <p id="preview-feedback" class="feedback" role="alert" hidden></p>
     <div id="preview-host"></div>
   </dialog>
-  <footer><span>幕前 <span class="footer-dot">/</span> 给每一位站上舞台的人</span><span>免登录 · 本机保存 · 自由导出</span></footer>
+  <footer><span>幕前 <span class="footer-dot">/</span> 给每一位站上舞台的人</span><span>免登录 · 提交后云端保存 · PDF 导出</span></footer>
   <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" hidden>
   <input id="backup-input" type="file" accept=".json,application/json" hidden>
 </body>
