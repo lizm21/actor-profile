@@ -10,15 +10,16 @@
   <meta name="theme-color" content="#f6f5f1">
   <title>幕前 · 演员档案</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=20261021-2">
+  <link rel="stylesheet" href="./directory.css?v=20261021-2">
   <script defer src="./vendor/pdf-lib.min.js"></script>
   <script defer src="./vendor/fontkit.umd.min.js"></script>
-  <script type="module" src="./app.mjs"></script>
+  <script type="module" src="./app.mjs?v=20261021-2"></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="./" aria-label="幕前演员档案首页"><span class="brand-mark" aria-hidden="true">幕</span><span>幕前<span class="brand-en">ACTOR FOLIO</span></span></a>
-    <div class="header-right"><span class="privacy-badge"><span aria-hidden="true">◈</span> 提交后云端保存</span><span class="version-label">档案编辑器 / 02</span></div>
+    <nav class="header-right" aria-label="主导航"><a class="nav-link" href="./directory.html">演员广场 ↗</a><span class="version-label">档案编辑器 / 03</span></nav>
   </header>
   <main>
     <section class="intro">
@@ -29,8 +30,8 @@
       <p id="save-status" class="save-status" role="status" aria-live="polite">正在读取本机草稿…</p>
       <div class="utility-actions"><button id="backup" class="text-button" type="button">备份草稿</button><span class="divider"></span><button id="import" class="text-button" type="button">导入草稿</button><span class="divider"></span><button id="clear" class="text-button muted" type="button">清空档案</button></div>
     </div>
-    <p class="storage-note">编辑时自动保存本机草稿；提交后，文字和压缩照片保存到本站腾讯云数据库，站点管理员可管理资料。持链接者可查看、下载，请只分享给需要的人。修改权限保存在本浏览器，清理浏览器数据后会失去修改权限。</p>
-    <p id="wechat-note" class="feedback" hidden>微信内保存 PDF 受限时：先提交到云端，再复制「档案链接」到系统浏览器打开下载，无需重新填写。</p>
+    <p class="storage-note">编辑时自动保存本机草稿；提交后，文字和压缩照片保存到本站腾讯云数据库，站点管理员可管理资料。默认仅持链接者可查看、下载；勾选公开展示后，所有人都能在演员广场查看完整资料并下载 PDF。修改权限保存在本浏览器，清理浏览器数据后会失去修改权限。</p>
+    <p id="wechat-note" class="feedback" hidden>微信内点击「下载 PDF」会显示浏览器下载指引。请通过右上角「…」在浏览器打开，或复制档案链接到 Safari / 系统浏览器，无需重新填写。</p>
     <div id="feedback" class="feedback" role="alert" hidden></div>
     <div class="workspace" data-view="editor">
       <section id="editor" class="editor" aria-label="编辑演员资料">
@@ -60,6 +61,7 @@
               <div id="honors"></div><p id="honor-empty" class="empty-list">记录比赛和获得的荣誉，也可以暂时留白。</p>
               <button type="button" id="add-honor" class="add-button"><span aria-hidden="true">＋</span> 添加比赛荣誉</button>
             </section>
+            <section class="publish-option"><label for="publish-public"><input id="publish-public" type="checkbox"> 公开展示在演员广场</label><p>勾选后，任何人都能浏览你的照片、个人简述、演出经历和荣誉，并下载 PDF。取消勾选并重新提交即可从广场撤下。</p><a href="./directory.html" target="_blank" rel="noopener">先看看演员广场 ↗</a></section>
             <div class="submit-area"><button id="submit-preview" type="submit" class="primary-button">提交并预览</button><p class="hint">将文字和压缩照片保存到云端，生成可分享的查看链接。</p></div>
           </fieldset>
         </form>
@@ -68,6 +70,7 @@
       <aside id="preview-panel" class="preview-panel" aria-label="档案预览">
         <section class="cloud-card" aria-label="云端档案">
           <p id="cloud-status" role="status" aria-live="polite">提交后可在其他浏览器打开这份档案。</p>
+          <p id="visibility-status"></p>
           <div id="cloud-link-box" hidden><label for="cloud-link">档案链接（持链接者可查看和下载）</label><input id="cloud-link" type="text" readonly spellcheck="false"><button id="copy-cloud-link" type="button" class="secondary-button">复制档案链接</button></div>
           <div class="cloud-actions"><button id="cloud-retry" type="button" class="text-button">保存到云端 / 重试</button><button id="reload-cloud" type="button" class="text-button" hidden>读取云端版本</button><button id="delete-cloud" type="button" class="text-button muted" hidden>删除云端档案</button><button id="view-retry" type="button" class="secondary-button" hidden>重新加载</button></div>
         </section>
@@ -86,6 +89,16 @@
     <div class="dialog-heading"><div><p class="eyebrow">确认你的演员档案</p><h2 id="preview-title">档案预览</h2></div><button id="close-preview" type="button" class="secondary-button">返回修改</button></div>
     <p id="preview-feedback" class="feedback" role="alert" hidden></p>
     <div id="preview-host"></div>
+  </dialog>
+  <dialog id="browser-dialog" class="browser-dialog" aria-labelledby="browser-title">
+    <div class="dialog-heading"><div><p class="eyebrow">微信下载指引</p><h2 id="browser-title">到浏览器下载 PDF</h2></div><button id="close-browser-guide" class="secondary-button" type="button">关闭</button></div>
+    <p class="browser-explanation">此网页无法替你自动切换到系统浏览器，请按以下步骤操作。</p>
+    <p id="browser-status" role="status" aria-live="polite"></p>
+    <div id="browser-ready" hidden>
+      <ol class="browser-steps"><li><strong>点击微信右上角「…」 ↗</strong><span>选择「在浏览器打开」或「在 Safari 中打开」。</span></li><li><strong>在浏览器中点击「下载 PDF」</strong><span>档案会从云端加载，不用重新填写。</span></li></ol>
+      <div class="browser-fallback"><p>菜单里没有这个选项？复制下方链接，手动打开 Safari / 系统浏览器并粘贴。</p><label for="browser-link">这份档案的查看链接</label><input id="browser-link" type="text" readonly spellcheck="false"><button id="copy-browser-link" class="primary-button" type="button">复制链接，去浏览器下载</button><p id="browser-copy-status" role="status"></p></div>
+    </div>
+    <button id="browser-retry" class="primary-button" type="button" hidden>重试保存最新档案</button>
   </dialog>
   <footer><span>幕前 <span class="footer-dot">/</span> 给每一位站上舞台的人</span><span>免登录 · 提交后云端保存 · PDF 导出</span></footer>
   <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" hidden>

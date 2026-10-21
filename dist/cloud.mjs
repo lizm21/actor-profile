@@ -15,6 +15,8 @@ export function parseProfileLink(hash){
   return {id:p.get('profile'),key:p.get('key')};
 }
 export function profileLink(base,id,key){const url=new URL(base);url.search='';url.hash=new URLSearchParams({profile:id,key}).toString();return url.href;}
+export function publicProfileLink(base,id){const url=new URL('./',base);url.hash=new URLSearchParams({public:id}).toString();return url.href;}
+export function parsePublicLink(hash){const p=new URLSearchParams(hash.replace(/^#/,''));if(!p.has('public'))return null;const id=p.get('public');if(!/^[0-9a-f]{32}$/.test(id||''))throw new Error('公开档案链接不完整。');return {id};}
 export async function fingerprint(draft){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(draft)))),x=>x.toString(16).padStart(2,'0')).join('');}
 export function validateCloudDraft(value){
   const d=validateDraft(value);
@@ -29,10 +31,10 @@ export function validateCloudDraft(value){
   return d;
 }
 const messages={INVALID:'档案内容超出保存限制，请检查文字和照片。',NOT_FOUND:'链接已失效、档案已删除或没有访问权限。',CONFLICT:'这份档案已在另一个页面更新。请先备份当前草稿，再点击「读取云端版本」核对。',LIMIT:'试用站今日保存量或档案总量已达上限。请先下载 PDF 或备份，稍后再试。'};
-export async function cloudRequest(params,{fetcher=fetch,timeout=20000}={}){
+export async function cloudRequest(params,{fetcher=fetch,timeout=20000,rpc='muqian_profile'}={}){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
   try{
-    const response=await fetcher(cloudConfig.endpoint+'/rpc/muqian_profile',{method:'POST',headers:{'Authorization':'Bearer '+cloudConfig.publishableKey,'Content-Type':'application/json'},body:JSON.stringify(params),signal:controller.signal,credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer'});
+    const response=await fetcher(cloudConfig.endpoint+'/rpc/'+rpc,{method:'POST',headers:{'Authorization':'Bearer '+cloudConfig.publishableKey,'Content-Type':'application/json'},body:JSON.stringify(params),signal:controller.signal,credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer'});
     if(!response.ok)throw new Error(response.status===403?'当前网址未获云端访问授权，请使用腾讯云版演员档案链接。':'云端暂时不可用，请保留本机草稿后重试。');
     const result=await response.json();
     if(result?.ok!==true){const error=new Error(messages[result?.code]||'云端保存失败，请稍后重试。');error.code=result?.code;throw error;}
@@ -41,5 +43,7 @@ export async function cloudRequest(params,{fetcher=fetch,timeout=20000}={}){
   finally{clearTimeout(timer);}
 }
 export const readProfile=(id,key)=>cloudRequest({p_action:'read',p_id:id,p_key:key});
-export const saveProfile=(identity,draft)=>cloudRequest({p_action:'save',p_id:identity.id,p_key:identity.editKey,p_view_key:identity.viewKey,p_version:identity.version,p_draft:validateCloudDraft(draft)});
+export const saveProfile=(identity,draft,published=null)=>cloudRequest({p_action:'save',p_id:identity.id,p_key:identity.editKey,p_view_key:identity.viewKey,p_version:identity.version,p_draft:validateCloudDraft(draft),p_public:published});
 export const deleteProfile=identity=>cloudRequest({p_action:'delete',p_id:identity.id,p_key:identity.editKey});
+export const listPublicProfiles=(query='',offset=0)=>cloudRequest({p_action:'list',p_query:query,p_offset:offset},{rpc:'muqian_directory'});
+export const readPublicProfile=id=>cloudRequest({p_action:'read',p_id:id},{rpc:'muqian_directory'});

@@ -1,5 +1,7 @@
 # 首版验证记录
 
+最新验证（2026-10-21 第二轮）：单元测试 12 项通过；`tests/cloud-live.mjs` 与 `tests/directory-live.mjs` 真实云端测试通过。公开/撤回、目录搜索、跨来源只读详情及 PDF 导出经过浏览器验证；微信指引使用 `tests/serve-wechat-preview.py` 在本地强制分支验证，手机真机仍待验收。所有合成测试云端资料已清空。详见 [CLOUD-DEPLOYMENT.md](CLOUD-DEPLOYMENT.md)。
+
 日期：2026-10-20。测试资料均为虚构内容，照片为人工绘制的几何图形。
 
 ## 已完成

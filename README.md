@@ -6,7 +6,9 @@
 
 - 云端测试入口：https://actor-profile-codex-d2g25pxe97f6c229f.webapps.tcloudbase.com/
 - CloudBase 环境：`codex-d2g25pxe97f6c229f`，上海，体验版到期 `2027-04-21 23:59:59`，本次未升级套餐。
-- 部署版本：`actor-profile-001`，构建 ID `2609063774`。
+- 部署版本：`actor-profile-002`，构建 ID `2609063842`。
+- 演员广场：https://actor-profile-codex-d2g25pxe97f6c229f.webapps.tcloudbase.com/directory.html 。提交时主动勾选公开展示才加入目录，支持搜索、查看完整资料和下载 PDF；取消勾选并重新提交可撤下。
+- 微信「下载 PDF」立即弹出浏览器下载指引，提供已保存的云端链接；需要用户通过微信菜单或手动粘贴打开系统浏览器。
 - 腾讯云默认域名会显示测试域名访问提醒，正式公开运营需另行解决域名与套餐限制。外网页面的确认访问步骤仍待用户完成，微信真机下载未验收。
 - 体验版拒绝添加 `lizm21.github.io` 为安全域名，因此本次云端源码单独保存，**不要将本分支直接发布到 GitHub Pages**。原 GitHub 网站继续提供本机版。
 - 迁移原 GitHub 网站草稿：在原网址下载 JSON 备份，再在云端版导入并提交。两个网址的本机草稿相互独立。

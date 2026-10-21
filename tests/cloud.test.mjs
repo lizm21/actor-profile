@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {newIdentity,validIdentity,profileLink,parseProfileLink,validateCloudDraft,cloudRequest} from '../dist/cloud.mjs';
+import {newIdentity,validIdentity,profileLink,parseProfileLink,validateCloudDraft,cloudRequest,publicProfileLink,parsePublicLink} from '../dist/cloud.mjs';
 import {emptyDraft} from '../dist/model.mjs';
 test('share links contain only view capability and round-trip without personal data',()=>{
   const id=newIdentity();assert.ok(validIdentity(id));
@@ -14,6 +14,12 @@ test('cloud limits reject oversized profiles and preserve Chinese and photos',()
   assert.deepEqual(validateCloudDraft(draft),draft);
   assert.throws(()=>validateCloudDraft({...draft,bio:'字'.repeat(12001)}));
   assert.throws(()=>validateCloudDraft({...draft,experiences:Array(101).fill({name:'',time:'',description:''})}));
+});
+test('public directory links contain no private view or editing capability',()=>{
+  const id=newIdentity();const url=publicProfileLink('https://example.test/actor/directory.html?query=test',id.id);
+  assert.equal(url,'https://example.test/actor/#public='+id.id);
+  assert.deepEqual(parsePublicLink(new URL(url).hash),{id:id.id});
+  assert.equal(parsePublicLink(''),null);assert.throws(()=>parsePublicLink('#public=bad'));
 });
 test('transport propagates permission and conflict failures, never sends cookies',async()=>{
   let request;
