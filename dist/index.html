@@ -25,12 +25,11 @@
     </section>
     <div class="workspace-bar">
       <p id="save-status" class="save-status" role="status" aria-live="polite">正在读取本机草稿…</p>
-      <div class="utility-actions"><button id="backup" class="text-button" type="button">备份草稿</button><span class="divider"></span><button id="import" class="text-button" type="button">导入草稿</button><span class="divider"></span><button id="transfer" class="text-button" type="button">微信 / 换浏览器</button><span class="divider"></span><button id="receive-transfer" class="text-button" type="button">粘贴迁移码</button><span class="divider"></span><button id="clear" class="text-button muted" type="button">清空档案</button></div>
+      <div class="utility-actions"><button id="backup" class="text-button" type="button">备份草稿</button><span class="divider"></span><button id="import" class="text-button" type="button">导入草稿</button><span class="divider"></span><button id="clear" class="text-button muted" type="button">清空档案</button></div>
     </div>
     <p class="storage-note">草稿仅保存在当前浏览器；清理浏览器数据或更换设备后不会自动恢复。建议定期备份。</p>
-    <p id="wechat-note" class="feedback" hidden>微信内可能无法保存 PDF。填写后请使用「微信 / 换浏览器」复制迁移码，在系统浏览器粘贴恢复，避免重新填写。</p>
+    <p id="wechat-note" class="feedback" hidden>微信可能限制文件保存。生成 PDF 后可尝试「保存 / 分享文件」（设备支持时显示）。当前资料仅存于微信内，换浏览器不会自动带入。</p>
     <div id="feedback" class="feedback" role="alert" hidden></div>
-    <nav class="mobile-tabs" aria-label="工作区视图"><button type="button" class="active" data-tab="editor" aria-pressed="true">编辑资料</button><button type="button" data-tab="preview" aria-pressed="false">预览档案</button></nav>
     <div class="workspace" data-view="editor">
       <section id="editor" class="editor" aria-label="编辑演员资料">
         <form id="profile-form" novalidate>
@@ -70,9 +69,8 @@
         <div class="export-card">
           <div><strong>准备好，让更多人认识你。</strong><p>中文文字可复制 · 照片清晰保留</p></div>
           <button id="export-pdf" type="button" class="primary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5"/></svg><span>下载 PDF</span></button>
-          <button id="transfer-from-preview" type="button" class="secondary-button">转到浏览器下载</button>
           <p class="export-note">预览展示内容与顺序，最终分页以 PDF 为准。</p>
-          <div id="pdf-result" class="pdf-result" hidden><span>PDF 已生成。</span><a id="open-pdf" target="_blank" rel="noopener">打开 PDF 并保存</a><p>此 PDF 链接只在当前浏览器有效。微信内无法保存时，请用下方「转到浏览器下载」迁移资料。</p></div>
+          <div id="pdf-result" class="pdf-result" hidden><span>PDF 已生成。</span><a id="save-pdf">保存 PDF</a><a id="open-pdf" target="_blank" rel="noopener">在当前浏览器预览</a><button id="share-pdf" type="button" class="secondary-button" hidden>保存 / 分享文件</button><p id="download-help">没有自动下载时，请点击「保存 PDF」。</p></div>
         </div>
       </aside>
     </div>
@@ -81,23 +79,6 @@
     <div class="dialog-heading"><div><p class="eyebrow">确认你的演员档案</p><h2 id="preview-title">档案预览</h2></div><button id="close-preview" type="button" class="secondary-button">返回修改</button></div>
     <p id="preview-feedback" class="feedback" role="alert" hidden></p>
     <div id="preview-host"></div>
-  </dialog>
-  <dialog id="transfer-dialog" class="transfer-dialog" aria-labelledby="transfer-title">
-    <div class="dialog-heading"><h2 id="transfer-title">换浏览器，继续你的档案</h2><button id="close-transfer" type="button" class="secondary-button">关闭</button></div>
-    <p>微信和系统浏览器不共享草稿。迁移码会带上全部文字、条目顺序和压缩照片。</p>
-    <div id="transfer-send">
-      <ol><li>点击「复制迁移码」，保留剪贴板中的内容。</li><li>通过微信右上角菜单在浏览器打开<strong>当前网站</strong>，或在系统浏览器输入下方网址。不要打开临时 PDF 链接。</li><li>点击网站顶部「粘贴迁移码」，粘贴并恢复，再提交预览、下载 PDF。</li></ol>
-      <p>网站地址：<a id="transfer-site" target="_blank" rel="noopener"></a></p>
-      <label for="transfer-code">迁移码（包含照片时较长，请完整复制）</label><textarea id="transfer-code" rows="3" readonly spellcheck="false"></textarea>
-      <button id="copy-transfer" type="button" class="primary-button">复制迁移码</button>
-      <p class="hint">迁移码包含你的资料，请勿公开发送。如微信菜单仍无法打开，请直接在系统浏览器输入网站地址；网络拦截需在设备上确认。</p>
-    </div>
-    <div id="transfer-receive" hidden>
-      <label for="transfer-input">粘贴从微信复制的完整迁移码</label><textarea id="transfer-input" rows="5" spellcheck="false" placeholder="MUQIAN1.…"></textarea>
-      <button id="restore-transfer" type="button" class="primary-button">恢复资料</button>
-      <p class="hint">恢复前会确认是否覆盖当前草稿；输入不完整时不会更改现有内容。</p>
-    </div>
-    <p id="transfer-status" role="status" aria-live="polite"></p>
   </dialog>
   <footer><span>幕前 <span class="footer-dot">/</span> 给每一位站上舞台的人</span><span>免登录 · 本机保存 · 自由导出</span></footer>
   <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" hidden>
