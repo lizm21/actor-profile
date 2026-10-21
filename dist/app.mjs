@@ -2,13 +2,13 @@ import {emptyDraft,meaningful,validateDraft,parseBackup,serializeBackup,filename
 import {openStorage,readDraft,writeDraft} from './storage.mjs';
 import {createProfilePdf} from './pdf.mjs';
 import {normalizePhoto,photoBytes} from './photo.mjs';
-import {newIdentity,readIdentity,storeIdentity,forgetIdentity,parseProfileLink,profileLink,fingerprint,readProfile,saveProfile,deleteProfile,parsePublicLink,publicProfileLink,readPublicProfile} from './cloud.mjs?v=20261021-2';
+import {newIdentity,readIdentity,storeIdentity,forgetIdentity,parseProfileLink,profileLink,fingerprint,readProfile,saveProfile,deleteProfile,parsePublicLink,publicProfileLink,readPublicProfile,managementLink,parseManagementLink} from './cloud.mjs?v=20261021-3';
 import {handoffState} from './handoff.mjs';
 
 const $=id=>document.getElementById(id);
 let draft=emptyDraft(),ready=false,storageReady=false,timer,revision=0,saveChain=Promise.resolve(),pdfUrl=null,photoRevision=0,photoBusy=false,pdfFile=null;
 const isWeChat=/MicroMessenger/i.test(navigator.userAgent);
-let identity=readIdentity(),viewOnly=false,cloudBusy=false,cloudDirty=true,sharedLink=null;
+let identity=readIdentity(),viewOnly=false,publicView=false,cloudBusy=false,cloudDirty=true,sharedLink=null;
 let published=false,desiredPublic=identity?.published===true,lastCloudError='';
 function syncBrowserGuide(){
   const state=handoffState({sharedLink,cloudDirty,cloudBusy,viewOnly});
@@ -27,6 +27,10 @@ function cloudControls(){
   $('cloud-link-box').hidden=!sharedLink||(!viewOnly&&cloudDirty);
   if(sharedLink)$('cloud-link').value=sharedLink;
   $('visibility-status').textContent=published?'已公开展示在演员广场。':'未公开到演员广场，仅凭查看链接可访问。';
+  $('owner-access').hidden=viewOnly||!identity?.version;
+  if(viewOnly||!identity?.version){$('management-link').value='';$('management-link').hidden=true;$('management-status').textContent='';}
+  $('restore-owner').disabled=cloudBusy||photoBusy||!ready;
+  $('restore-owner').hidden=viewOnly;
   syncBrowserGuide();
 }
 function feedback(message=''){ for(const id of ['feedback','preview-feedback']){$(id).textContent=message;$(id).hidden=!message;} }
@@ -145,7 +149,7 @@ $('photo-input').addEventListener('change',async e=>{
 });
 $('remove-photo').addEventListener('click',()=>{photoRevision++;draft.photo=null;renderForm();changed();});
 $('backup').addEventListener('click',()=>{
-  if(!ready)return;downloadBlob(new Blob([serializeBackup(draft)],{type:'application/json;charset=utf-8'}),filename(draft.stageName,'草稿备份','json'));feedback('草稿备份已生成。请妥善保存，文件包含你填写的文字和照片。');
+  if(!ready||viewOnly)return;downloadBlob(new Blob([serializeBackup(draft)],{type:'application/json;charset=utf-8'}),filename(draft.stageName,'草稿备份','json'));feedback('草稿备份已生成。请妥善保存，文件包含你填写的文字和照片。');
 });
 $('import').addEventListener('click',()=>{if(ready)$('backup-input').click();});
 $('backup-input').addEventListener('change',async e=>{
@@ -170,7 +174,7 @@ $('clear').addEventListener('click',()=>{
   photoRevision++;draft=emptyDraft();renderForm();changed();flush();feedback();$('name-error').hidden=true;$('stage-name').removeAttribute('aria-invalid');$('stage-name').focus();
 });
 $('export-pdf').addEventListener('click',async()=>{
-  if(!ready||photoBusy)return;feedback();$('pdf-result').hidden=true;
+  if(publicView||!ready||photoBusy)return;feedback();$('pdf-result').hidden=true;
   if(!draft.stageName.trim()){
     $('name-error').hidden=false;$('stage-name').setAttribute('aria-invalid','true');$('stage-name').focus();return;
   }
@@ -201,8 +205,23 @@ $('export-pdf').addEventListener('click',async()=>{
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
 window.addEventListener('pagehide',flush);
+window.addEventListener('hashchange',async()=>{flush();await saveChain;location.reload();});
 async function init(){
   let incoming=null,publicIncoming=null,linkError=null;
+  const requestedManagement=new URLSearchParams(location.hash.slice(1)).has('manage');
+  let managementInput='';
+  if(requestedManagement){
+    managementInput=location.href;
+    // Remove the editing capability from the address bar before reading the draft.
+    history.replaceState(null,'',location.pathname+location.search);
+  }
+  publicView=new URLSearchParams(location.hash.replace(/^#/, '')).has('public');
+  if(publicView){
+    document.body.classList.add('public-view');
+    $('export-card').hidden=true;$('public-view-note').hidden=false;$('wechat-note').hidden=true;
+    $('cloud-link-label').textContent='公开浏览链接（仅查看）';
+    $('footer-features').textContent='演员广场 · 公开简历仅供浏览';
+  }
   try{publicIncoming=parsePublicLink(location.hash);if(!publicIncoming)incoming=parseProfileLink(location.hash);}catch(error){linkError=error;}
   viewOnly=!!linkError||!!publicIncoming||!!(incoming&&(!identity||identity.id!==incoming.id||identity.viewKey!==incoming.key));
   if(viewOnly){
@@ -212,8 +231,8 @@ async function init(){
       if(linkError)throw linkError;
       const result=publicIncoming?await readPublicProfile(publicIncoming.id):await readProfile(incoming.id,incoming.key);draft=validateDraft(result.draft);
       sharedLink=publicIncoming?publicProfileLink(location.href,publicIncoming.id):profileLink(location.href,incoming.id,incoming.key);cloudDirty=false;published=result.published===true;
-      ready=true;renderPreview();$('export-pdf').disabled=false;
-      savedStatus('已打开云端档案 · 只读');cloudStatus('云端档案已加载，可以下载 PDF。');
+      ready=true;renderPreview();$('export-pdf').disabled=publicView;
+      savedStatus('已打开云端档案 · 只读');cloudStatus(publicView?'已打开公开简历，仅供浏览。':'云端档案已加载，可以下载 PDF。');
       document.title=draft.stageName+' · 演员档案';
     }catch(error){savedStatus('无法打开云端档案',true);cloudStatus(error.message,true);$('view-retry').hidden=false;}
     cloudControls();return;
@@ -235,6 +254,7 @@ async function init(){
     cloudStatus(cloudDirty?'本机草稿与上次提交不同，请重新提交以更新链接内容。':'上次提交已保存到云端，可以复制档案链接。');
   }else cloudStatus('点击「提交并预览」，将文字和压缩照片保存到云端。');
   cloudControls();
+  if(managementInput)openManagementDialog(managementInput);
 }
 const previewAnchor=document.createComment('preview-panel');
 $('preview-panel').before(previewAnchor);
@@ -269,6 +289,46 @@ async function submitCloud(){
 }
 $('cloud-retry').addEventListener('click',submitCloud);
 $('view-retry').addEventListener('click',()=>location.reload());
+function openManagementDialog(link=''){
+  $('management-input').value=link;$('restore-status').textContent='';
+  if(!$('management-dialog').open)$('management-dialog').showModal();
+}
+$('restore-owner').addEventListener('click',()=>openManagementDialog());
+$('close-management').addEventListener('click',()=>$('management-dialog').close());
+$('copy-management-link').addEventListener('click',async()=>{
+  if(viewOnly||!identity?.version)return;
+  const link=managementLink(location.href,identity);
+  $('management-link').value=link;$('management-link').hidden=false;
+  try{await navigator.clipboard.writeText(link);$('management-status').textContent='管理链接已复制，请保存到自己的私密笔记。持有此链接的人可修改、撤下或删除这份简历，请勿转发。';}
+  catch{$('management-link').hidden=false;$('management-link').value=link;$('management-link').focus();$('management-link').select();$('management-link').setSelectionRange(0,link.length);$('management-status').textContent='请长按选中的链接复制，并保存到自己的私密笔记，请勿转发。';}
+});
+$('management-form').addEventListener('submit',async e=>{
+  e.preventDefault();if(viewOnly||cloudBusy||photoBusy)return;
+  const button=$('restore-management');button.disabled=true;$('restore-status').textContent='正在验证管理权限并读取最新简历…';
+  try{
+    const candidate=parseManagementLink($('management-input').value);
+    if(!candidate)throw new Error('这是浏览链接，不能用于恢复修改权限。请使用提交后复制的「我的管理链接」。');
+    const result=await readProfile(candidate.id,candidate.editKey),restored=validateDraft(result.draft);
+    // Confirm that both capabilities belong to this profile before replacing local state.
+    await readProfile(candidate.id,candidate.viewKey);
+    const occupied=!!(draft.stageName.trim()||draft.bio.trim()||draft.photo||meaningful(draft.experiences).length||meaningful(draft.honors).length);
+    if(occupied&&!confirm('当前浏览器已有草稿。恢复会用云端最新版本替换它，建议先备份。是否继续？')){$('restore-status').textContent='已取消，当前草稿未改变。';return;}
+    const restoredIdentity={...candidate,version:result.version,fingerprint:await fingerprint(restored),published:result.published===true};
+    try{storeIdentity(restoredIdentity);}catch{throw new Error('浏览器无法保存修改权限，请允许本地存储后重试。当前草稿未改变。');}
+    identity=restoredIdentity;draft=restored;published=identity.published;desiredPublic=published;
+    $('management-link').value='';$('management-link').hidden=true;$('management-status').textContent='';
+    viewOnly=false;publicView=false;ready=true;revision++;photoRevision++;
+    document.body.classList.remove('view-only','public-view');$('export-card').hidden=false;$('public-view-note').hidden=true;$('export-pdf').disabled=false;
+    $('wechat-note').hidden=!isWeChat;$('cloud-link-label').textContent='跨浏览器下载链接（持链接者可下载，请勿公开分享）';
+    $('footer-features').textContent='免登录 · 提交后云端保存 · PDF 导出';
+    sharedLink=profileLink(location.href,identity.id,identity.viewKey);cloudDirty=false;
+    history.replaceState(null,'',sharedLink);renderForm();flush();cloudControls();
+    $('form-fields').disabled=false;$('management-input').value='';$('management-dialog').close();
+    cloudStatus('已恢复这份简历的修改权限。修改后点击「提交并预览」更新原简历。');
+    feedback('已从云端恢复最新简历，你可以继续修改。请保管好专属管理链接。');
+  }catch(error){$('restore-status').textContent=error.message||'恢复失败，请检查管理链接后重试。';}
+  finally{button.disabled=false;}
+});
 $('copy-cloud-link').addEventListener('click',async()=>{
   if(!sharedLink||(!viewOnly&&cloudDirty))return;
   try{await navigator.clipboard.writeText(sharedLink);cloudStatus('档案链接已复制。可粘贴到其他浏览器打开，或发给需要查看的人。');}
@@ -303,7 +363,7 @@ $('copy-browser-link').addEventListener('click',async()=>{
 });
 $('preview-dialog').addEventListener('close',()=>{previewAnchor.after($('preview-panel'));$('submit-preview').focus();});
 $('share-pdf').addEventListener('click',async()=>{
-  if(!pdfFile)return;
+  if(publicView||!pdfFile)return;
   try{await navigator.share({files:[pdfFile],title:'演员档案'});}
   catch(error){if(error.name!=='AbortError')feedback('当前浏览器未能保存文件。请复制档案链接到系统浏览器，重新点击「下载 PDF」。');}
 });

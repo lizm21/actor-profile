@@ -16,6 +16,18 @@ export function parseProfileLink(hash){
 }
 export function profileLink(base,id,key){const url=new URL(base);url.search='';url.hash=new URLSearchParams({profile:id,key}).toString();return url.href;}
 export function publicProfileLink(base,id){const url=new URL('./',base);url.hash=new URLSearchParams({public:id}).toString();return url.href;}
+export function managementLink(base,identity){
+  if(!validIdentity(identity))throw new Error('管理权限无效，请先提交简历。');
+  const url=new URL('./',base);url.hash=new URLSearchParams({manage:identity.id,edit:identity.editKey,view:identity.viewKey}).toString();return url.href;
+}
+export function parseManagementLink(input){
+  let url;try{url=new URL(input.trim());}catch{throw new Error('请粘贴完整的专属管理链接。');}
+  if(!['https:','http:'].includes(url.protocol))throw new Error('管理链接格式不正确。');
+  const p=new URLSearchParams(url.hash.slice(1));if(!p.has('manage'))return null;
+  const identity={id:p.get('manage'),editKey:p.get('edit'),viewKey:p.get('view'),version:0,fingerprint:''};
+  if(!validIdentity(identity))throw new Error('管理链接不完整，请重新复制；公开浏览链接不能用于恢复修改权限。');
+  return identity;
+}
 export function parsePublicLink(hash){const p=new URLSearchParams(hash.replace(/^#/,''));if(!p.has('public'))return null;const id=p.get('public');if(!/^[0-9a-f]{32}$/.test(id||''))throw new Error('公开档案链接不完整。');return {id};}
 export async function fingerprint(draft){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(draft)))),x=>x.toString(16).padStart(2,'0')).join('');}
 export function validateCloudDraft(value){

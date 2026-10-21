@@ -10,16 +10,16 @@
   <meta name="theme-color" content="#f6f5f1">
   <title>幕前 · 演员档案</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=20261021-2">
-  <link rel="stylesheet" href="./directory.css?v=20261021-2">
+  <link rel="stylesheet" href="./styles.css?v=20261021-3">
+  <link rel="stylesheet" href="./directory.css?v=20261021-3">
   <script defer src="./vendor/pdf-lib.min.js"></script>
   <script defer src="./vendor/fontkit.umd.min.js"></script>
-  <script type="module" src="./app.mjs?v=20261021-2"></script>
+  <script type="module" src="./app.mjs?v=20261021-3"></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="./" aria-label="幕前演员档案首页"><span class="brand-mark" aria-hidden="true">幕</span><span>幕前<span class="brand-en">ACTOR FOLIO</span></span></a>
-    <nav class="header-right" aria-label="主导航"><a class="nav-link" href="./directory.html">演员广场 ↗</a><span class="version-label">档案编辑器 / 03</span></nav>
+    <nav class="header-right" aria-label="主导航"><button id="restore-owner" class="text-button" type="button" disabled>恢复我的简历</button><a class="nav-link" href="./directory.html">演员广场 ↗</a></nav>
   </header>
   <main>
     <section class="intro">
@@ -30,7 +30,7 @@
       <p id="save-status" class="save-status" role="status" aria-live="polite">正在读取本机草稿…</p>
       <div class="utility-actions"><button id="backup" class="text-button" type="button">备份草稿</button><span class="divider"></span><button id="import" class="text-button" type="button">导入草稿</button><span class="divider"></span><button id="clear" class="text-button muted" type="button">清空档案</button></div>
     </div>
-    <p class="storage-note">编辑时自动保存本机草稿；提交后，文字和压缩照片保存到本站腾讯云数据库，站点管理员可管理资料。默认仅持链接者可查看、下载；勾选公开展示后，所有人都能在演员广场查看完整资料并下载 PDF。修改权限保存在本浏览器，清理浏览器数据后会失去修改权限。</p>
+    <p class="storage-note">编辑时自动保存本机草稿；提交后，文字和压缩照片保存到本站腾讯云数据库，站点管理员可管理资料。公开到广场的简历仅供浏览。提交后请保存专属管理链接，换手机或清理浏览器数据后可凭它恢复修改权限；管理链接请勿转发。</p>
     <p id="wechat-note" class="feedback" hidden>微信内点击「下载 PDF」会显示浏览器下载指引。请通过右上角「…」在浏览器打开，或复制档案链接到 Safari / 系统浏览器，无需重新填写。</p>
     <div id="feedback" class="feedback" role="alert" hidden></div>
     <div class="workspace" data-view="editor">
@@ -61,7 +61,7 @@
               <div id="honors"></div><p id="honor-empty" class="empty-list">记录比赛和获得的荣誉，也可以暂时留白。</p>
               <button type="button" id="add-honor" class="add-button"><span aria-hidden="true">＋</span> 添加比赛荣誉</button>
             </section>
-            <section class="publish-option"><label for="publish-public"><input id="publish-public" type="checkbox"> 公开展示在演员广场</label><p>勾选后，任何人都能浏览你的照片、个人简述、演出经历和荣誉，并下载 PDF。取消勾选并重新提交即可从广场撤下。</p><a href="./directory.html" target="_blank" rel="noopener">先看看演员广场 ↗</a></section>
+            <section class="publish-option"><label for="publish-public"><input id="publish-public" type="checkbox"> 公开展示在演员广场</label><p>勾选后，任何人都能浏览你的照片、个人简述、演出经历和荣誉。广场不提供 PDF 下载。取消勾选并重新提交即可从广场撤下。</p><a href="./directory.html" target="_blank" rel="noopener">先看看演员广场 ↗</a></section>
             <div class="submit-area"><button id="submit-preview" type="submit" class="primary-button">提交并预览</button><p class="hint">将文字和压缩照片保存到云端，生成可分享的查看链接。</p></div>
           </fieldset>
         </form>
@@ -71,12 +71,14 @@
         <section class="cloud-card" aria-label="云端档案">
           <p id="cloud-status" role="status" aria-live="polite">提交后可在其他浏览器打开这份档案。</p>
           <p id="visibility-status"></p>
-          <div id="cloud-link-box" hidden><label for="cloud-link">档案链接（持链接者可查看和下载）</label><input id="cloud-link" type="text" readonly spellcheck="false"><button id="copy-cloud-link" type="button" class="secondary-button">复制档案链接</button></div>
+          <section id="owner-access" class="owner-access" hidden><strong>换手机，也能继续修改</strong><p>保存专属管理链接，以后打开它即可恢复这份简历。持链接者可修改、撤下或删除，请勿发到群聊或广场。</p><button id="copy-management-link" class="secondary-button" type="button">复制我的管理链接</button><input id="management-link" type="text" readonly aria-label="专属管理链接" hidden><p id="management-status" role="status" aria-live="polite"></p></section>
+          <div id="cloud-link-box" hidden><label id="cloud-link-label" for="cloud-link">跨浏览器下载链接（持链接者可下载，请勿公开分享）</label><input id="cloud-link" type="text" readonly spellcheck="false"><button id="copy-cloud-link" type="button" class="secondary-button">复制档案链接</button></div>
           <div class="cloud-actions"><button id="cloud-retry" type="button" class="text-button">保存到云端 / 重试</button><button id="reload-cloud" type="button" class="text-button" hidden>读取云端版本</button><button id="delete-cloud" type="button" class="text-button muted" hidden>删除云端档案</button><button id="view-retry" type="button" class="secondary-button" hidden>重新加载</button></div>
         </section>
         <div class="preview-toolbar"><div><span class="live-dot"></span>档案预览</div><span>A4 纵向 · 自动分页</span></div>
         <div class="paper-wrap"><article id="paper" class="paper" aria-label="简历内容预览"></article></div>
-        <div class="export-card">
+        <p id="public-view-note" class="hint" hidden>公开简历仅供浏览。内容修改与 PDF 导出由简历管理者操作。</p>
+        <div id="export-card" class="export-card">
           <div><strong>准备好，让更多人认识你。</strong><p>中文文字可复制 · 照片清晰保留</p></div>
           <button id="export-pdf" type="button" class="primary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5"/></svg><span>下载 PDF</span></button>
           <p class="export-note">预览展示内容与顺序，最终分页以 PDF 为准。</p>
@@ -90,6 +92,11 @@
     <p id="preview-feedback" class="feedback" role="alert" hidden></p>
     <div id="preview-host"></div>
   </dialog>
+  <dialog id="management-dialog" class="browser-dialog" aria-labelledby="management-title">
+    <div class="dialog-heading"><h2 id="management-title">恢复我的简历</h2><button id="close-management" class="secondary-button" type="button">关闭</button></div>
+    <p>使用首次提交后保存的专属管理链接，在这台设备恢复云端最新简历并继续修改。</p>
+    <form id="management-form"><label for="management-input">专属管理链接</label><textarea id="management-input" rows="3" spellcheck="false" autocomplete="off" placeholder="粘贴「复制我的管理链接」得到的完整链接" required></textarea><p class="hint">公开浏览链接和 PDF 下载链接没有修改权限。若当前设备有其他草稿，恢复前请先备份。</p><button id="restore-management" type="submit" class="primary-button">恢复并编辑</button><p id="restore-status" role="status" aria-live="polite"></p></form>
+  </dialog>
   <dialog id="browser-dialog" class="browser-dialog" aria-labelledby="browser-title">
     <div class="dialog-heading"><div><p class="eyebrow">微信下载指引</p><h2 id="browser-title">到浏览器下载 PDF</h2></div><button id="close-browser-guide" class="secondary-button" type="button">关闭</button></div>
     <p class="browser-explanation">此网页无法替你自动切换到系统浏览器，请按以下步骤操作。</p>
@@ -100,7 +107,7 @@
     </div>
     <button id="browser-retry" class="primary-button" type="button" hidden>重试保存最新档案</button>
   </dialog>
-  <footer><span>幕前 <span class="footer-dot">/</span> 给每一位站上舞台的人</span><span>免登录 · 提交后云端保存 · PDF 导出</span></footer>
+  <footer><span>幕前 <span class="footer-dot">/</span> 给每一位站上舞台的人</span><span id="footer-features">免登录 · 提交后云端保存 · PDF 导出</span></footer>
   <input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" hidden>
   <input id="backup-input" type="file" accept=".json,application/json" hidden>
 </body>
