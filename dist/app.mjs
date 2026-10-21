@@ -1,10 +1,12 @@
 import {emptyDraft,meaningful,validateDraft,parseBackup,serializeBackup,filename,cleanText} from './model.mjs';
 import {openStorage,readDraft,writeDraft} from './storage.mjs';
 import {createProfilePdf} from './pdf.mjs';
+import {normalizePhoto,photoBytes} from './photo.mjs';
+import {createTransferCode,readTransferCode} from './transfer.mjs';
 
 const $=id=>document.getElementById(id);
-let draft=emptyDraft(),ready=false,storageReady=false,timer,revision=0,saveChain=Promise.resolve(),pdfUrl=null,photoRevision=0;
-function feedback(message=''){ $('feedback').textContent=message;$('feedback').hidden=!message; }
+let draft=emptyDraft(),ready=false,storageReady=false,timer,revision=0,saveChain=Promise.resolve(),pdfUrl=null,photoRevision=0,photoBusy=false,transferBusy=false;
+function feedback(message=''){ for(const id of ['feedback','preview-feedback']){$(id).textContent=message;$(id).hidden=!message;} }
 function savedStatus(message,error=false){$('save-status').textContent=message;$('save-status').classList.toggle('error',error);}
 function changed(){
   revision++; clearTimeout(timer);
@@ -86,20 +88,12 @@ function renderForm(){
   $('stage-name').value=draft.stageName;$('bio').value=draft.bio;
   $('photo-thumb').hidden=!draft.photo;$('photo-empty').hidden=!!draft.photo;$('remove-photo').hidden=!draft.photo;
   if(draft.photo)$('photo-thumb').src=draft.photo.dataUrl;else $('photo-thumb').removeAttribute('src');
+  $('photo-size').textContent=draft.photo?`已压缩至约 ${Math.ceil(photoBytes(draft.photo)/1024)} KB，保持原比例`:'';
   renderRows('experiences');renderRows('honors');renderPreview();
 }
 function setTab(view){
   document.querySelector('.workspace').dataset.view=view;
   document.querySelectorAll('[data-tab]').forEach(b=>{const selected=b.dataset.tab===view;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));});
-}
-async function normalizePhoto(source){
-  const image=new Image();image.decoding='async';image.src=source;
-  try{await image.decode();}catch{throw new Error('无法读取这张照片，请选择有效的 JPG、PNG 或 WebP 图片。');}
-  if(!image.naturalWidth||!image.naturalHeight)throw new Error('照片没有有效尺寸。');
-  const scale=Math.min(1,1800/Math.max(image.naturalWidth,image.naturalHeight));
-  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
-  const ctx=canvas.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
-  return {dataUrl:canvas.toDataURL('image/jpeg',.9)};
 }
 function downloadBlob(blob,name,keep=false){
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();
@@ -109,24 +103,24 @@ $('stage-name').addEventListener('input',e=>{
   draft.stageName=cleanText(e.target.value);$('stage-name').removeAttribute('aria-invalid');$('name-error').hidden=true;changed();
 });
 $('bio').addEventListener('input',e=>{draft.bio=cleanText(e.target.value);changed();});
-$('profile-form').addEventListener('submit',e=>e.preventDefault());
+$('profile-form').addEventListener('submit',e=>{e.preventDefault();openPreview();});
 for(const [button,key] of [['add-experience','experiences'],['add-honor','honors']]){
   $(button).addEventListener('click',()=>{
     draft[key].push(key==='experiences'?{name:'',time:'',description:''}:{name:'',award:'',time:''});renderRows(key);changed();
     document.getElementById(`${key}-${draft[key].length-1}-name`).focus();
   });
 }
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>b.dataset.tab==='preview'?openPreview():setTab('editor')));
 $('choose-photo').addEventListener('click',()=>$('photo-input').click());
 $('photo-input').addEventListener('change',async e=>{
   const file=e.target.files[0];e.target.value='';if(!file)return;
   const ownRevision=++photoRevision;feedback();
   if(!['image/jpeg','image/png','image/webp'].includes(file.type)){feedback('请选择 JPG、PNG 或 WebP 格式的照片。');return;}
   if(file.size>10*1024*1024){feedback('照片超过 10 MB，请选择较小的图片。');return;}
-  $('choose-photo').disabled=true;const url=URL.createObjectURL(file);
+  photoBusy=true;$('submit-preview').disabled=true;$('choose-photo').disabled=true;const url=URL.createObjectURL(file);
   try{const photo=await normalizePhoto(url);if(ownRevision!==photoRevision)return;draft.photo=photo;renderForm();changed();}
   catch(error){feedback(error.message);}
-  finally{URL.revokeObjectURL(url);$('choose-photo').disabled=false;}
+  finally{URL.revokeObjectURL(url);photoBusy=false;$('submit-preview').disabled=false;$('choose-photo').disabled=false;}
 });
 $('remove-photo').addEventListener('click',()=>{photoRevision++;draft.photo=null;renderForm();changed();});
 $('backup').addEventListener('click',()=>{
@@ -142,7 +136,7 @@ $('backup-input').addEventListener('change',async e=>{
     if(incoming.photo){
       const image=new Image();image.src=incoming.photo.dataUrl;
       try{await image.decode();}catch{throw new Error('备份中的照片已损坏，当前档案未被更改。');}
-      if(incoming.photo.dataUrl.startsWith('data:image/webp'))incoming.photo=await normalizePhoto(incoming.photo.dataUrl);
+      incoming.photo=await normalizePhoto(incoming.photo.dataUrl);
     }
     if(!confirm(startRevision!==revision?'读取备份期间你修改了档案。仍要用备份覆盖当前内容吗？':'导入会覆盖当前浏览器中的这份档案。建议先备份，是否继续？'))return;
     photoRevision++;draft=incoming;renderForm();changed();flush();feedback('草稿已导入。请检查内容后继续编辑。');
@@ -153,13 +147,14 @@ $('clear').addEventListener('click',()=>{
   photoRevision++;draft=emptyDraft();renderForm();changed();flush();feedback();$('name-error').hidden=true;$('stage-name').removeAttribute('aria-invalid');setTab('editor');$('stage-name').focus();
 });
 $('export-pdf').addEventListener('click',async()=>{
-  if(!ready)return;feedback();$('pdf-result').hidden=true;
+  if(!ready||photoBusy)return;feedback();$('pdf-result').hidden=true;
   if(!draft.stageName.trim()){
     setTab('editor');$('name-error').hidden=false;$('stage-name').setAttribute('aria-invalid','true');$('stage-name').focus();return;
   }
   const button=$('export-pdf'),label=button.querySelector('span');button.disabled=true;button.setAttribute('aria-busy','true');label.textContent='正在生成…';
   const snapshot=structuredClone(draft),startRevision=revision;
   try{
+    if(snapshot.photo)snapshot.photo=await normalizePhoto(snapshot.photo.dataUrl);
     const bytes=await createProfilePdf(snapshot);const blob=new Blob([bytes],{type:'application/pdf'});
     if(pdfUrl)URL.revokeObjectURL(pdfUrl);pdfUrl=downloadBlob(blob,filename(snapshot.stageName,'演员档案','pdf'),true);
     $('open-pdf').href=pdfUrl;$('pdf-result').hidden=false;
@@ -172,7 +167,7 @@ window.addEventListener('pagehide',flush);
 async function init(){
   try{
     await openStorage();storageReady=true;const stored=await readDraft();
-    if(stored){draft=validateDraft(stored);savedStatus('已恢复本机草稿');}
+    if(stored){draft=validateDraft(stored);if(draft.photo){try{draft.photo=await normalizePhoto(draft.photo.dataUrl);await writeDraft(draft);}catch{feedback('旧照片未能压缩，请重新添加照片；文字已恢复。');}}savedStatus('已恢复本机草稿');}
     else savedStatus('本机自动保存已开启');
   }catch{
     // Do not silently overwrite an unreadable existing draft.
@@ -181,4 +176,58 @@ async function init(){
   }
   ready=true;renderForm();$('form-fields').disabled=false;
 }
+const previewAnchor=document.createComment('preview-panel');
+$('preview-panel').before(previewAnchor);
+function requireName(){
+  if(draft.stageName.trim())return true;
+  if($('preview-dialog').open)$('preview-dialog').close();
+  setTab('editor');$('name-error').hidden=false;$('stage-name').setAttribute('aria-invalid','true');$('stage-name').focus();return false;
+}
+function openPreview(){
+  if(!ready||photoBusy||!requireName())return;
+  feedback();flush();renderPreview();$('preview-host').append($('preview-panel'));
+  if(!$('preview-dialog').open)$('preview-dialog').showModal();
+  $('close-preview').focus();
+}
+$('close-preview').addEventListener('click',()=>$('preview-dialog').close());
+$('preview-dialog').addEventListener('close',()=>{previewAnchor.after($('preview-panel'));setTab('editor');$('submit-preview').focus();});
+async function openTransfer(receive=false){
+  if(!ready||transferBusy)return;
+  if(photoBusy){feedback('照片正在处理，请稍后再迁移。');return;}
+  transferBusy=true;
+  $('transfer-send').hidden=receive;$('transfer-receive').hidden=!receive;
+  $('transfer-status').textContent=receive?'':'正在准备完整资料…';
+  if(!$('transfer-dialog').open)$('transfer-dialog').showModal();
+  $('copy-transfer').disabled=true;
+  try{
+    if(receive){$('transfer-input').focus();return;}
+    const snapshot=structuredClone(draft);
+    if(snapshot.photo)snapshot.photo=await normalizePhoto(snapshot.photo.dataUrl);
+    $('transfer-code').value=createTransferCode(snapshot);
+    const url=new URL('./',location.href);url.search='';url.hash='';
+    $('transfer-site').href=url.href;$('transfer-site').textContent=url.href;
+    $('transfer-status').textContent='迁移码已准备好。资料不上传服务器。';$('copy-transfer').disabled=false;
+  }catch(error){$('transfer-status').textContent=error.message;}
+  finally{transferBusy=false;}
+}
+$('transfer').addEventListener('click',()=>openTransfer());
+$('transfer-from-preview').addEventListener('click',()=>openTransfer());
+$('receive-transfer').addEventListener('click',()=>openTransfer(true));
+$('close-transfer').addEventListener('click',()=>$('transfer-dialog').close());
+$('copy-transfer').addEventListener('click',async()=>{
+  const code=$('transfer-code').value;
+  try{await navigator.clipboard.writeText(code);$('transfer-status').textContent='已复制。现在在系统浏览器打开网站，点击「粘贴迁移码」。';}
+  catch{$('transfer-code').focus();$('transfer-code').select();$('transfer-code').setSelectionRange(0,code.length);$('transfer-status').textContent='浏览器未允许自动复制。请长按上方迁移码，选择「全选 → 复制」。';}
+});
+$('restore-transfer').addEventListener('click',async()=>{
+  const button=$('restore-transfer');button.disabled=true;const startRevision=revision;
+  try{
+    const incoming=readTransferCode($('transfer-input').value);
+    if(incoming.photo)incoming.photo=await normalizePhoto(incoming.photo.dataUrl);
+    if(!confirm(startRevision===revision?'用迁移资料覆盖当前草稿吗？建议先备份当前内容。':'读取期间档案已修改，仍要覆盖吗？'))return;
+    photoRevision++;draft=incoming;renderForm();changed();flush();$('transfer-input').value='';$('transfer-dialog').close();feedback('资料已恢复，文字和照片已带入。点击「提交并预览」继续下载。');
+  }catch(error){$('transfer-status').textContent=error.message;}
+  finally{button.disabled=false;}
+});
+$('wechat-note').hidden=!/MicroMessenger/i.test(navigator.userAgent);
 init();

@@ -21,7 +21,7 @@ jobs:
         run: |
           node --check dist/app.mjs
           node --check dist/pdf.mjs
-          node --test tests/model.test.mjs
+          node --test tests/*.test.mjs
   deploy:
     needs: check
     runs-on: ubuntu-latest

@@ -1,4 +1,5 @@
 import {cleanText, meaningful} from './model.mjs';
+import {compactTrueType} from './compact-font.mjs';
 let cachedFont;
 async function getFont(){
   if(!cachedFont) cachedFont=fetch(new URL('./fonts/NotoSansSC-Regular.ttf',import.meta.url)).then(r=>{if(!r.ok)throw new Error('中文字体未能加载，请检查网络后重试。');return r.arrayBuffer()}).catch(e=>{cachedFont=null;throw e});
@@ -16,8 +17,9 @@ export async function createProfilePdf(draft, options={}){
   const missing=[...new Set([...allText].filter(c=>c!=='\n'&&!parsed.hasGlyphForCodePoint(c.codePointAt(0))))];
   if(missing.length)throw new Error(`PDF 字体暂不支持这些字符：${missing.slice(0,12).join(' ')}。请修改后重试；原始草稿仍保留。`);
   const pdf=await lib.PDFDocument.create();pdf.registerFontkit(kit);
-  // Embed the full static font: fontkit's subset path can lose composite CJK glyphs.
-  const font=await pdf.embedFont(fontBytes,{subset:false});
+  const textWithLabels=allText+'ACTOR PROFILE演员档案个人简述演出经历比赛荣誉0123456789 /·';
+  const glyphIds=[...new Set([...textWithLabels].filter(c=>c!=='\n').map(c=>parsed.glyphForCodePoint(c.codePointAt(0)).id))];
+  const font=await pdf.embedFont(compactTrueType(fontBytes,glyphIds),{subset:false});
   pdf.setTitle(`${draft.stageName.trim()} · 演员档案`);pdf.setAuthor(draft.stageName.trim());pdf.setCreator('幕前 · 演员档案');pdf.setLanguage('zh-CN');
   const {rgb}=lib, W=595.28,H=841.89,M=48,BOTTOM=52, width=W-2*M;
   const ink=rgb(.14,.17,.15), muted=rgb(.44,.48,.42), accent=rgb(.52,.29,.20);

@@ -22,6 +22,7 @@ for(const [name,draft] of Object.entries(cases)){
   const parsed=await PDFLib.PDFDocument.load(bytes);
   console.log(JSON.stringify({name,pages:parsed.getPageCount(),bytes:bytes.length}));
   if(name==='minimal')assert.equal(parsed.getPageCount(),1);
+  if(name!=='photo')assert.ok(bytes.length<400000,'text PDF should remain under 400 KB');
   if(name==='long')assert.ok(parsed.getPageCount()>3);
 }
 await assert.rejects(()=>createProfilePdf({...base,stageName:'测试🦄'},{PDFLib,fontkit,fontBytes}),/字体暂不支持/);
